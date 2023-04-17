@@ -35,6 +35,9 @@ class EMS:
             #self.random_day = random.randint(43825, 52608 - NUM_TIME_STEPS)
             self.random_day = 37946
         else:
+            #self.random_day = random.randint(0, 37945 - NUM_TIME_STEPS)
+            range = 37945 - NUM_TIME_STEPS
+
             self.random_day = random.randint(0, 37945 - NUM_TIME_STEPS)
             #self.random_day = 37945 - 8760
 
@@ -58,36 +61,38 @@ class EMS:
         self.natural_gas = 0      
         self.storage = 0
         self.hydrogen = 0
-        self.power_from_grid = 0
-        self.done = False
+        self.power_from_grid = 0 
         self.time = 0
         self.gas_consumption = 0
         self.pv_generation = 0
         self.wind_generation = 0
         self.ammonia = 0
+        self.ammonia_total = 0
         self.cost = 0
+        self.paid_price = 0
+        self.done = False
  
 
 
     def step(self, action):
     
 
-      
-        # RENEWABLES
+        ##############
+        # RENEWABLES #
+        ##############
 
         if self.pv_gen:
-            #pv_generation = np.minimum(self.sun_power * PV_EFFICIENCY * PV_SURFACE, PV_CAPACITY)     
             pv_generation = self.sun_power
         else:
             pv_generation = 0 
 
         self.pv_generation = pv_generation
-
-
         self.wind_generation = self.windkraft_ertrag(self.wind_power) * 1
 
-        
-        # BATTERY STORAGE
+        ###################
+        # BATTERY STORAGE #
+        ###################
+
         if action[1] >= 0:        
             Pbattery = np.minimum(action[1] * C_MAX, (STORAGE_CAPACITY - self.storage) / ETA)
             if not np.isnan(Pbattery):
@@ -97,29 +102,27 @@ class EMS:
             if not np.isnan(Pbattery):
                 self.storage += int(Pbattery / ETA)
 
-    
-        Pel = np.minimum(action[0] * ELECTROLYZER_POWER, np.maximum(0,- Pbattery + pv_generation + self.wind_generation + ELECTROLYZER_POWER * 0.2))
-
-        electrolyser_output, Wcomp, P_tot, moles = self.electrolyzer.run(Pel)
-        self.moles = moles
-
-        # hydrogen produced from electrolyzer (kg)
-        self.hydrogen = electrolyser_output
-
+        ################
+        # ELECTROLYZER #
+        ################
 
         
+        self.ammonia = random.uniform(141400, 145000)                           # hydrogen consumotion (moles)
+        self.ammonia_total += self.ammonia
+        hydrogen_needed = self.ammonia * 0.667                                  # (mol)
+
+        #Pel = np.minimum(action[0] * ELECTROLYZER_POWER, np.maximum(0,- Pbattery + pv_generation + self.wind_generation + ELECTROLYZER_POWER * 0.01))
+        Pel = action[0] * ELECTROLYZER_POWER
+        self.hydrogen, Wcomp, P_tank, self.moles = self.electrolyzer.run(Pel)         # (kg), (W)
        
-        # electrolyser_output * 0.667
         
-        self.ammonia = random.uniform(141400, 145000)
-        hydrogen_needed = self.ammonia * 0.667
+        PTank = np.minimum(1 * hydrogen_needed, self.electrolyzer.get_moles())  # (mol)
+        self.electrolyzer.consume_moles_from_tank(PTank)                        # (mol)
+        hydrogen_from_natural_gas_mol = (hydrogen_needed - PTank)                   # (mol)
 
-        PTank = np.minimum(1 * hydrogen_needed, self.electrolyzer.get_moles())
-       
-        self.electrolyzer.consume_moles_from_tank(PTank)    
-
-        hydrogen_from_natural_gas = (hydrogen_needed - PTank)
-        self.natural_gas = hydrogen_from_natural_gas * 1.17
+        # Calculate the volume of natural gas needed to produce the required amount of hydrogen
+        # (1.17 m3 of natural gas is needed to produce 1 mol of hydrogen)
+        self.natural_gas = hydrogen_from_natural_gas_mol * 0.0224 * 1.17        # (m³)
 
 
 
@@ -130,7 +133,7 @@ class EMS:
         r = self.reward(self.power_from_grid)
         
         # tensorboard scalars
-        writer.add_scalar('States/Hydrogen Storage', self.moles * 0.0101, self.time)    
+        writer.add_scalar('States/Hydrogen Storage', self.moles, self.time)    
         writer.add_scalar('States/Price', self.price, self.time)
         writer.add_scalar('States/External Energy Source/Power From Grid', self.power_from_grid, self.time)
         writer.add_scalar('States/External Energy Source/Natural Gas Consumption', self.natural_gas, self.time)
@@ -168,6 +171,8 @@ class EMS:
 
         if self.time >= NUM_TIME_STEPS:
             self.done = True
+            self.cost = self.ammonia_total/self.cost
+         
 
         return [self.sun_power, self.price, self.storage, self.natural_gas_price, self.ammonia, self.wind_generation], r, self.done 
 
@@ -175,14 +180,21 @@ class EMS:
     def reward(self, P_grid):
         
         if P_grid >=0:
-            paid_price = - P_grid*self.price           # buy mal 2
+            paid_price = - P_grid*self.price      # buy mal 2
+            self.cost += P_grid*self.price   
         else:
             paid_price = P_grid*self.price * 1.5  # sell 1.5
-            
-        #print(paid_price, self.natural_gas / 28.32 * self.natural_gas_price )
-        price_natural_gas = self.natural_gas / 28.32 * self.natural_gas_price
 
-        #reward = paid_price - price_natural_gas + self.hydrogen
+
+           
+       
+        sell_green_energy_penalty = STORAGE_CAPACITY - self.storage
+        # 1 mmbtu zu m3 erdgas
+        price_natural_gas = self.natural_gas / 28.32 * self.natural_gas_price
+        
+        self.cost += self.natural_gas / 28.32 * self.natural_gas_price 
+              
+       
         reward = paid_price - price_natural_gas + self.hydrogen
 
 
@@ -203,7 +215,6 @@ class EMS:
 
         self.wind_powers = pd.read_csv('data/environment/renewables/data.csv', header=0, delimiter=',').iloc[self.random_day:self.random_day+NUM_TIME_STEPS+1,7]
         self.wind_power = self.wind_powers[self.random_day]
-
 
         self.prices = pd.read_csv('data/environment/prices/data.csv', header=0,delimiter=';').iloc[self.random_day:self.random_day+NUM_TIME_STEPS+1,5]
         self.price = self.prices[self.random_day]
@@ -238,10 +249,13 @@ class EMS:
         self.gas_consumption = 0
         self.done = False
         self.ammonia = 0
+        self.ammonia_total = 0
         self.soc = 0
         self.cost = 0
         self.electrolyzer.reset()
         self.moles = self.electrolyzer.get_moles()
+        self.paid_price = 0
+        
 
         return [self.sun_power, self.price, self.storage, self.natural_gas_price, self.ammonia, self.wind_generation] 
 
@@ -252,32 +266,3 @@ class EMS:
         lambd = 1.0 # Spitzenausnutzungsgrad
         ertrag = 0.5 * rho * A * Cp * lambd * (windgeschwindigkeit**3)
         return ertrag
-
-    def haber_bosch(self, h2_kg):
-        # Constants
-        R = 8.314  # J/(mol*K)
-        T = 773.15 # K
-        P = 200    # atm
-        k = 1.44e-4 # mol/(kg*h*atm^2)
-        
-        # Stoichiometry of the reaction: N2 + 3H2 --> 2NH3
-        n_h2 = h2_kg / 2.016  # moles of H2
-        n_n2 = n_h2 / 3      # moles of N2
-        
-        # Calculate equilibrium constant
-        K = (P**2)/(k*T**2)*((n_n2**2)/(n_h2**3))
-        
-        # Calculate extent of reaction using the quadratic formula
-        a = 1
-        b = -(n_h2 + 2*K*n_n2)
-        c = K*n_n2**2
-        x = (-b + (b**2 - 4*a*c)**0.5)/(2*a)
-        
-        # Calculate moles of NH3 produced
-        n_nh3 = 2*x
-        
-        # Convert moles of NH3 to kg/H2
-        m_nh3 = 17.031  # g/mol
-        nh3_kg = n_nh3 * m_nh3 / 1000  # kg/H2
-        
-        return nh3_kg

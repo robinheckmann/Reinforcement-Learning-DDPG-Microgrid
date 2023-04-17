@@ -90,17 +90,16 @@ class DAgent():
         self.steps_done += 1
         if sample > self.epsilon_threshold:
             with torch.no_grad():
-                #actions = self.policy_net(state).max(1)[1].view(1, 1)
-                #actions = torch.cat((actions, actions), dim=1)
-                print("hi")
-                #return actions
+                actions = self.policy_net(state).max(1)[1].view(1, 1)
+                actions = torch.cat((actions, actions), dim=1)
+             
+                return actions
                 # t.max(1) will return largest column value of each row.
                 # second column on max result is index of where max element was
                 # found, so we pick action with the larger expected reward.
-                return self.policy_net(state).max(1)[1].unsqueeze(0)
-
+               
+                #return self.policy_net(state).max(1)[1].unsqueeze(0)
         else:
-
             return torch.tensor([[random.uniform(0, 1),random.uniform(-1, 1)]],dtype=torch.float).to(device)
 
     def optimize_model(self):
@@ -124,7 +123,9 @@ class DAgent():
         state_batch = torch.cat(batch.state).to(device)
 
         action_batch = torch.cat(batch.action).to(device)
-        reward_batch = torch.cat(batch.reward).to(device)
+        reward_batch = torch.cat([r.unsqueeze(0) for r in batch.reward]).to(device)
+
+        #reward_batch = torch.cat(batch.reward).to(device)
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken

@@ -29,8 +29,7 @@ def train_dqn(ckpt,model_name,dynamic,soft):
         for t in count():
             # Select and perform an action
             action = brain.select_action(state).type(torch.FloatTensor)          
-            print(action)
-            next_state, reward, done = env.step(action.numpy())
+            next_state, reward, done = env.step(action.numpy().squeeze())
        
             score += reward
             reward = torch.tensor(reward,dtype=torch.float,device=device)

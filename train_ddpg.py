@@ -13,6 +13,7 @@ import torch
 def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
     env = EMS(dynamic)
     total_rewards = []
+    price_per_ammonia = []
     
     if ckpt:
         brain = torch.load(ckpt,map_location=torch.device('cpu'))
@@ -58,6 +59,7 @@ def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
 
             if done:
                 total_rewards.append(episode_reward)
+                price_per_ammonia.append(env.cost)
                 break
         
 
@@ -67,8 +69,13 @@ def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
             torch.save(brain, os.getcwd()  + '/data/output/DDPG/models/' + model_name + '.pt')
             with open(os.getcwd() + '/data/output/DDPG/' + model_name + '_dynamic_' + str(dynamic) + '_noise_' + str(noisy) +  '_rewards_dqn.pkl', 'wb') as f:
                 pkl.dump(total_rewards, f)
+            
+            with open(os.getcwd() + '/data/output/DDPG/' + model_name + '_dynamic_' + str(dynamic) + '_noise_' + str(noisy) +  '_price_ammonia_ddpg.pkl', 'wb') as f:
+                pkl.dump(price_per_ammonia, f)
+            
+            
 
-        sys.stdout.write('Finished episode {} with reward {}\n'.format(i_episode, round(episode_reward)))
+        sys.stdout.write('Finished episode {} with reward {} and cost {}\n'.format(i_episode, round(episode_reward), env.cost))
 
 
     model_params = {

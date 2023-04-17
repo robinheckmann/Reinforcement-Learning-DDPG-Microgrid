@@ -89,29 +89,29 @@ class Electrolyzer():
         # OUTPUT
         Qh2_m = Ne*Nc*Ir*nf/2/F                            # (mol/s)
         Qh2_m = Qh2_m * 60 * 60                            # (mol/h)
-        m_dotH2 = Qh2_m*0.001                              # (kg/h)
+        m_dotH2 = Qh2_m * 0.001                              # (kg/h)
         
         # Compressor model ERROR IN MOLES INDEX ERROR
         P_tank = self.moles*R*(T+273.15)/V_TANK                  # hydrogen tank
 
 
         
-        #Tout = (T+273.15)*(P_tank/Pe)**((gamma-1)/gamma)
-        #Wcomp = (m_dotH2/eta_c)*cpH2*(Tout-(T+273.15))       # Power for Compressor (kW)
+        Tout = (T+273.15)*(P_tank/Pe)**((gamma-1)/gamma)
+        Wcomp = (m_dotH2/eta_c)*cpH2*(Tout-(T+273.15)) * 1000      # Power for Compressor (W)
+        
         P_tot = P
-
-        Wcomp = 0
         Tout = 0
        
         # Number of moles in time i in the tank
-        self.moles += Qh2_m*1/Nt
+        
 
         soc = P_tank
-        #if soc >= self.max_charge:
-            #print(self.moles*0.0101)
-            #print('charged')
+        if soc >= self.max_charge:
+            m_dotH2 = 0
+        else:
+            self.moles += np.minimum(Qh2_m*1/Nt, self.max_charge - P_tank)
 
-        return m_dotH2, Wcomp, P_tot, self.moles
+        return m_dotH2, Wcomp, P_tank, self.moles
 
     def reset(self):
         self.moles = 10

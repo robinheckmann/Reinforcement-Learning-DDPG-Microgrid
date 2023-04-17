@@ -25,13 +25,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def run(ckpt,model_name,dynamic,soft, eval, model_type, noisy):
+def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
 
     if not eval:
         if model_type == 'DQN':
             train_dqn(ckpt, model_name, dynamic, soft)
-        elif model_type== 'DDPG':
-            
+        elif model_type== 'DDPG':        
             train_ddpg(ckpt, model_name, dynamic, noisy)
         elif model_type == 'Q':
             print("Q-LEARNING")

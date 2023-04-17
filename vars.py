@@ -3,20 +3,20 @@ import torch
 
 ### General settings
 
-NUM_TIME_STEPS = 168
+NUM_TIME_STEPS = 24*7
 #168
 # TRAIN 168 TEST 8760
 
 ##### RL Agent parameters
-NUM_EPISODES = 4000 # Number of episodes
+NUM_EPISODES = 8000 # Number of episodes
 EPSILON = 1 # For epsilon-greedy approach
-EPS_DECAY = 0.997 # old: 0.997
+EPS_DECAY = 0.990 # old: 0.997
 LEARNING_RATE = 0.0001
 LEARNING_RATE_ACTOR = 1e-4
 LEARNING_RATE_CRITIC = 1e-3
 GAMMA = 0.99
-TARGET_UPDATE = 10
-BATCH_SIZE = 64 # 64
+TARGET_UPDATE = 4 # 10
+BATCH_SIZE = 16 # 64
 N_ACTIONS = 2
 INPUT_DIMS = 6
 FC_1_DIMS = 300
@@ -39,12 +39,8 @@ BATTERY_DEPRECIATION = 100 # When using the battery some depreciation is created
 #ETA = 0.95 # Battery charging efficiency
 ETA = 1
 INITIAL_STORAGE = 1000000 # Set here what is initially stored inside of the battery
-STORAGE_CAPACITY = 2000000 # Number of Watts that can be stored in the battery, 5 MWh
+STORAGE_CAPACITY = 5000000 # Number of Watts that can be stored in the battery, 5 MWh
 MIN_STORAGE = 10
-
-# HYDROGEN STORAGE
-HYDROGEN_STORAGE_CAPACITY = 10000 ## 6,000 kgH2 storage capacity of hydrogen tanks
-INITIAL_HYDROGE_STORAGE = 0
 
 # PHOTOVOLTAIK
 PV_EFFICIENCY = 0.20
@@ -59,7 +55,7 @@ ELECTROLYZER_POWER = 20000000   # (W) Watt
 T = 180.0                       # (°C) Electrolyzer operating temperature
 R = 8.31445                     # (J/mol-K) universal constant of gases
 F = 96485.34                    # (C/mol) Faraday's constant
-V_TANK = 2000                # (m^3) volume of the tank
-Nt = 1                          # number of tanks to be charged
+V_TANK = 133                     # (m^3) volume of the tank
+Nt = 111                          # number of tanks to be charged
 
 
