@@ -29,11 +29,13 @@ class Actor(nn.Module):
         # Output --> Mapped into [0,1] domain for the heating system
         # Mapped into [-1,1] with tanh for the storage system
         mu = self.mu(x)
-        # 
-        mu_h = torch.sigmoid(mu[:,0].unsqueeze(1))
-        mu_s = torch.tanh(mu[:,1].unsqueeze(1))
+        
+        #mu_h = torch.sigmoid(mu[:,0].unsqueeze(1))
+        mu_h = torch.sigmoid(mu[:,0].unsqueeze(1))    
+        mu_s = torch.sigmoid(mu[:,1].unsqueeze(1))
+        mu_v = torch.sigmoid(mu[:,2].unsqueeze(1))
         #mu_v = torch.sigmoid(mu[:,0].unsqueeze(1))
-        return torch.cat((mu_h,mu_s),1)
+        return torch.cat((mu_h,mu_s,mu_v),1)
 
 class Critic(nn.Module):
     def __init__(self, hidden_size, num_inputs, action_space):
@@ -67,12 +69,13 @@ class Critic(nn.Module):
 
         # Output
         V = self.V(x)
+ 
         return V
 
 class DDPGagent(object):
 
     def __init__(self, gamma=GAMMA, tau=TAU, hidden_size_actor=[300,600], hidden_size_critic=[300,600,600,600],
-                 num_inputs=INPUT_DIMS, action_space=np.array([[1,1],[-1,1]]), batch_size=BATCH_SIZE, mem_size = int(1e6), epsilon=EPSILON,
+                 num_inputs=INPUT_DIMS, action_space=np.array([[1,1],[1,1],[1,1]]), batch_size=BATCH_SIZE, mem_size = int(1e6), epsilon=EPSILON,
                  eps_dec=EPS_DECAY, eps_end = 0.1,lr_actor = LEARNING_RATE_ACTOR, lr_critic=LEARNING_RATE_CRITIC, add_noise=True, random_seed=42):
 
         """
@@ -120,7 +123,7 @@ class DDPGagent(object):
         self.critic_target.eval()
 
         self.add_noise = add_noise
-        self.noise = OrnsteinUhlenbeckActionNoise(2, random.seed())
+        self.noise = OrnsteinUhlenbeckActionNoise(N_ACTIONS, random.seed())
 
 
     def hard_update(self, target, source):
@@ -146,12 +149,14 @@ class DDPGagent(object):
             
             if self.add_noise:
                 actions = actions.cpu().numpy()
+   
                 actions += self.noise.sample()
                 
-             
-                actions[0] = np.clip(actions[0], 0, 1)
-                actions[1] = np.clip(actions[1], -1, 1)
                 
+                actions[0] = np.clip(actions[0], 0, 1)
+                actions[1] = np.clip(actions[1], 0, 1)
+                actions[2] = np.clip(actions[2], 0, 1)
+
                 return torch.from_numpy(actions).float().to(device)
             else:
                 sample = random.random()
@@ -161,7 +166,7 @@ class DDPGagent(object):
                 if sample > self.epsilon_threshold:
                     return actions
                 else:
-                    return torch.tensor([random.random(), random.uniform(-1, 1)], dtype=torch.float).to(device)
+                    return torch.tensor([random.random(), random.random(), random.random()], dtype=torch.float).to(device)
             return
 
     def optimize_model(self):
@@ -198,6 +203,7 @@ class DDPGagent(object):
         # Update the critic network
         self.critic_optimizer.zero_grad()
         state_action_values = self.critic(state_batch, action_batch)
+        
         # Compute Huber loss
         value_loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
         value_loss.backward()

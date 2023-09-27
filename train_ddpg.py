@@ -20,8 +20,6 @@ def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
     else:
         brain = DDPGagent(mem_size=MEMORY_SIZE, add_noise = noisy)
 
-
-
     for i_episode in range(NUM_EPISODES):
         # Initialize the environment.rst and state
         brain.reset()
@@ -38,6 +36,7 @@ def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
             action = brain.select_action(state).type(torch.FloatTensor)
             next_state, reward, done = env.step(action.numpy())
             episode_reward += reward
+            
             reward = torch.tensor([reward], dtype=torch.float, device=device)
 
             if not done:
@@ -64,7 +63,7 @@ def train_ddpg(ckpt, model_name, dynamic, noisy, save_best = True):
         
 
         # save model every 10 episodes
-        if i_episode%10 == 0:
+        if i_episode%50 == 0:
             #torch.save(brain, os.getcwd()  + '/' + model_name + '.pt')
             torch.save(brain, os.getcwd()  + '/data/output/DDPG/models/' + model_name + '.pt')
             with open(os.getcwd() + '/data/output/DDPG/' + model_name + '_dynamic_' + str(dynamic) + '_noise_' + str(noisy) +  '_rewards_dqn.pkl', 'wb') as f:

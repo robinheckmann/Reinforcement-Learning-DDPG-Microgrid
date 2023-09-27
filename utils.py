@@ -37,7 +37,28 @@ class Normalizer():
         obs_std = torch.sqrt(self.var).to(device)
         return (inputs - self.mean)/obs_std
 
+'''
+'''
 
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
+
+
+class ReplayMemory(object):
+
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
+
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Transition(*args))
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+    
 class ReplayMemory(object):
     """
     This class serves as storage capability for the replay memory. It stores the Transition tuple
@@ -75,42 +96,6 @@ class ReplayMemory(object):
         return len(self.memory)
 
 
-class BasicController():
-
-    def __init__(self, number_time_steps, dynamic, model_name):
-        self.number_time_steps = number_time_steps
-        self.building = Building(dynamic, eval=True)
-        self.temperatures = []
-        self.costs = []
-        self.action = 0
-        self.model_name = model_name
-
-    def control(self):
-        """
-        Represents a very basic control mechanism that is used as baseline for comparision. It heats until T=T_max
-        and then turns the heating off until T_min is reached
-        :param number_time_steps:
-        :return:
-        """
-
-        for _ in range(self.number_time_steps):
-            if self.building.inside_temperature > T_MAX - 1 / TEMPERATURE_ROUNDING:
-                self.action = 0
-            elif self.building.inside_temperature < T_MIN + 1 / TEMPERATURE_ROUNDING:
-                self.action = 1
-
-            self.building.step(self.action)
-            self.temperatures.append(self.building.inside_temperature)
-            self.costs.append(self.action*NOMINAL_HEAT_PUMP_POWER*self.building.price/1e6*TIME_STEP_SIZE/3600)
-
-        with open(os.getcwd() + '/data/output/' + self.model_name + '_costs_basic.pkl', 'wb') as f:
-            pkl.dump(self.costs, f)
-
-        with open(os.getcwd() + '/data/output/' + self.model_name + '_temperatures_basic.pkl', 'wb') as f:
-            pkl.dump(self.temperatures, f)
-
-
-    
     
 class OrnsteinUhlenbeckActionNoise:
     """Ornstein-Uhlenbeck process."""

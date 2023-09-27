@@ -7,10 +7,12 @@ import datetime
 from math import log10, exp
 from numpy import zeros
 from scipy.optimize import fsolve
-from helpers import vi_calc
+
 from matplotlib.pyplot import plot, title, show
 from datetime import timedelta
 import math
+import matplotlib.pyplot as plt
+
 
 
 class Electrolyzer():
@@ -49,8 +51,8 @@ class Electrolyzer():
         
         eta_c = 0.8                                         # compressor's isentropic efficiency
         A = 1.25                                            # (m^2) area of electrode
-        Ne = 100                                            # Number of Electrolyzers
-        Nc = 100.0                                          # Number of cells connected in series
+        Ne = 16                                            # Number of Electrolyzers
+        Nc = 1250.0                                          # Number of cells connected in series
         
         # empiral parmeter from Ulleberg
         r1 = 7.331e-5                                       # (ohm m^2) ri parameter for ohmic resistance of electrolyte
@@ -80,7 +82,7 @@ class Electrolyzer():
         # Electrolyzer in action
         
         Pr = Pl/Ne                            # (W) to power one stack of electrolyzer
-        V, Ir = fsolve(vi_calc, [x0_1, x0_2], args=(Pr, Nc, self.V_rev, T, r1, r2, s1, s2, s3, t1, t2, t3, A), maxfev=500)
+        V, Ir = fsolve(self.vi_calc, [x0_1, x0_2], args=(Pr, Nc, self.V_rev, T, r1, r2, s1, s2, s3, t1, t2, t3, A), maxfev=500)
         
         nf = a1*exp((a2+a3*T+a4*T**2)/(Ir/A)+(a5+a6*T+a7*T**2)/(Ir/A)**2)   # Compute Faraday Efficiency (Ulleberg)
 
@@ -106,10 +108,9 @@ class Electrolyzer():
         
 
         soc = P_tank
-        if soc >= self.max_charge:
-            m_dotH2 = 0
-        else:
-            self.moles += np.minimum(Qh2_m*1/Nt, self.max_charge - P_tank)
+        
+        self.moles += np.minimum(Qh2_m*1/Nt, self.max_charge - P_tank)
+        
 
         return m_dotH2, Wcomp, P_tank, self.moles
 
@@ -121,9 +122,32 @@ class Electrolyzer():
     
     def get_moles(self):
         return self.moles
+    
+    def doPlot(self):
+        print("plot")
+        arr = []
+        m_dotH2, n1, n2, n3 = self.run(20000000)
+        print(m_dotH2)
+        arr2 = []
+        for i in np.arange(0,20000000,100000):
+            arr2.append(i)
+            print(i)
+            m_dotH2, n1, n2, n3 = self.run(i)
+            arr.append(m_dotH2)
+
+        print(arr)
+        print(i)
+        plt.plot(arr)
+        plt.ylabel('some numbers')
+        plt.savefig('foo.png')
+        self.reset()
+    
 
   
-
+    def vi_calc(self, x, Pri, Nc, V_rev, T, r1, r2, s1, s2, s3, t1, t2, t3, A):
+        fa = list([x[0] - V_rev - (r1+r2*T)*x[1]/A - (s1+s2*T+s3*T**2)*log10((t1+t2/T+t3/T**2)*x[1]/A+1)])
+        fa.append((Nc*x[0])*x[1]-Pri)
+        return fa
 
         
     

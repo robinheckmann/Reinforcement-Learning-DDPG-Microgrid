@@ -1,4 +1,3 @@
-from DQN import DAgent
 from environment import EMS
 from matplotlib import style
 style.use('ggplot')
@@ -10,7 +9,6 @@ import argparse
 import torch
 import pandas as pd
 import numpy as np
-from train_dqn import train_dqn
 from train_ddpg import train_ddpg
 
 def parse_args():
@@ -21,21 +19,14 @@ def parse_args():
     parser.add_argument("--soft", default=True,type=lambda x: (str(x).lower() == 'true'))
     parser.add_argument("--eval", default=False, type=lambda x: (str(x).lower() == 'true'))
     parser.add_argument("--model_type", default='DDPG')
-    parser.add_argument("--noisy", default=True, type=lambda x: (str(x).lower() == 'true'))
+    parser.add_argument("--noisy", default=False, type=lambda x: (str(x).lower() == 'true'))
     return parser.parse_args()
 
 
 def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
 
     if not eval:
-        if model_type == 'DQN':
-            train_dqn(ckpt, model_name, dynamic, soft)
-        elif model_type== 'DDPG':        
-            train_ddpg(ckpt, model_name, dynamic, noisy)
-        elif model_type == 'Q':
-            print("Q-LEARNING")
-        else:
-            print("No Model type selected")
+        train_ddpg(ckpt, model_name, dynamic, noisy)
             
     else:
         if ckpt:
@@ -57,9 +48,11 @@ def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
             pv_generation = [env.pv_generation]
             natural_gas_prices = [env.natural_gas_price]
             gas_consumptions = [env.gas_consumption]
-            electrolyzer = [0]
-            battery_actions = [0]
-            actions = [[0,0]]
+            ammonia_produced = [env.ammonia]
+            action1 = [0]
+            action2 = [0]
+            action3 = [0]
+            actions = [[0,0,0]]
             rewards = [0]
             print('Starting evaluation of the model')
             
@@ -72,9 +65,9 @@ def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
                 action = brain.select_action(state).type(torch.FloatTensor)
                 prices.append(env.price) # Will be replaced with environment price in price branch
 
-                electrolyzer.append(action[0].numpy())
-                battery_actions.append(action[1].numpy())
-
+                action1.append(action[0].numpy())
+                action2.append(action[1].numpy())
+                action3.append(action[2].numpy())
                 
                 actions.append(action.numpy())
                 next_state, reward, done = env.step(action.numpy())
@@ -84,6 +77,7 @@ def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
                 natural_gas_prices.append(env.natural_gas_price)
                 gas_consumptions.append(env.gas_consumption)
                 hydrogen_produced.append(env.hydrogen)
+                ammonia_produced.append(env.ammonia)
                 natural_gas.append(env.natural_gas)
                 storage_state.append(env.storage)
                 sun_power.append(env.sun_power)
@@ -101,17 +95,24 @@ def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
                 state = next_state
 
             eval_data = pd.DataFrame()
+
+            eval_data['Actions'] = actions
+            eval_data['Rewards'] = rewards
+
+
+            eval_data['Action1'] = action1
+            eval_data['Action2'] = action2
+            eval_data['Action3'] = action3
+
+
             eval_data['PV Generation'] = pv_generation
             eval_data['Datetime'] = dates
             eval_data['Gas Consumption'] = gas_consumptions
-
             eval_data['Prices'] = prices
+            eval_data['Ammonia'] = ammonia_produced
             eval_data['Prices Natural gas'] = natural_gas_prices
             eval_data['Moles'] = moles
-            eval_data['Electrolyzer'] = battery_actions
-            eval_data['Battery Action'] = electrolyzer
-            eval_data['Actions'] = actions
-            eval_data['Rewards'] = rewards
+            
             eval_data['Storage'] = storage_state
             eval_data['Power'] = power_from_grid
             eval_data['Sun Power'] = sun_power
@@ -124,54 +125,75 @@ def run(ckpt, model_name, dynamic, soft, eval, model_type, noisy):
             print('Finished evaluation!')
             print('evaluating the policy...')
 
-            temperatures = []
+            ammonia = 0
             battery_actions = []
             electrolyzer_action = []
             grid_prices = []
-            ambient_temperatures = []
             battery_levels = [] 
             sun_powers = []
+            
             times = []
-            gas_prices = []
+            
             actions = []
+            
 
-            #self.temperature, self.sun_power, self.price, self.storage, self.moles,  self.natural_gas_price
+            gas_price = 0
+            gas_prices = []
+            moles = 0
+            battery_level = 0
+            gas_price = 0
+            sun_power = 0
+            wind_generation = 0
+            ammonia_total = 0
+            action1 = []
+            action2 = []
+            action3 = []
+            action4 = []
 
-            for temperature in range(-10, 20, 1): 
-                 
-                for sun_power in np.arange(0,600,10):
-                    for price in np.arange(-10,50,1):
-                        for battery_level in np.arange(0, STORAGE_CAPACITY, STORAGE_CAPACITY/10):
-                                for gas_price in np.arange(0,10,1):
 
-                                    state = [temperature, sun_power, price, battery_level, gas_price] #, time
-                                    state = torch.tensor(state, dtype=torch.float).to(device)
-                                    state = brain.normalizer.normalize(state).unsqueeze(0)
-                                    action = brain.select_action(state).type(torch.FloatTensor).numpy()
-                                    
-
-                                    
-                                    electrolyzer_action.append(action[0])
-                                    battery_actions.append(action[1])
-                                    grid_prices.append(price)
-                                    temperatures.append(temperature)
-                                    actions.append(action)
-                                    
-                                    battery_levels.append(battery_level)
+            
+            for sun_power in np.arange(0,100000000,10000000):
+                print("Sun Power", sun_power)
+                for price in np.arange(-10,50,1):
+                    for battery_level in np.arange(-10,50,1):
+                        for moles in np.arange(-10,50,1):
+                       
+                            state = [sun_power, price, battery_level, moles, gas_price, ammonia, wind_generation, ammonia_total] #, time
+                            
+                            
+                            state = torch.tensor(state, dtype=torch.float).to(device)
+                            state = brain.normalizer.normalize(state).unsqueeze(0)
+                            
+                            action = brain.select_action(state).type(torch.FloatTensor).numpy()
                                   
-                                    sun_powers.append(sun_power)
-                                    gas_prices.append(gas_price)
+                            action1.append(action[0])
+                            action2.append(action[1])
+                            action3.append(action[2])
+                            action4.append(action[3])
+                            
+                            grid_prices.append(price)
+                            actions.append(action)
+                            
+                            battery_levels.append(battery_level)
+                            
+                            sun_powers.append(sun_power)
+                            gas_prices.append(gas_price)
 
             eval_data = pd.DataFrame()
-            eval_data['Temperature'] = temperatures
+
             eval_data['Actions'] = actions
-            #eval_data['Grid Prices'] = grid_prices
             eval_data['Grid Prices'] = grid_prices
+
+
             eval_data['Battery Level'] = battery_levels
-            eval_data['Battery Action'] = battery_actions
-            eval_data['Electrolyzer Action'] = battery_actions
-            eval_data['Sun Power'] = sun_powers
-            eval_data['Natural Gas Price'] = gas_prices
+            eval_data['action1'] = action1
+            eval_data['action2'] = action2
+            eval_data['action3'] = action3
+            eval_data['action4'] = action4
+
+
+            
+           
 
             with open(os.getcwd() + '/data/output/' + model_type + '/' + model_name + '_policy_eval.pkl', 'wb') as f:
                 pkl.dump(eval_data, f)
